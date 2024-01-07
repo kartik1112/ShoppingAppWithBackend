@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shopping_list/models/category.dart';
 import 'package:shopping_list/models/grocery_item.dart';
-import 'package:shopping_list/providers/categories_provider.dart';
 
 class ListViewGroceryItem extends ConsumerWidget {
   const ListViewGroceryItem(this.item, {super.key});
