@@ -1,58 +1,108 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lottie/lottie.dart';
-import 'package:shopping_list/providers/categories_provider.dart';
-import 'package:shopping_list/widgets/listview_item.dart';
+import 'package:http/http.dart' as http;
+import 'package:shopping_list/data/categories.dart';
+import 'package:shopping_list/models/category.dart';
+
+import 'package:shopping_list/models/grocery_item.dart';
 import 'package:shopping_list/widgets/new_item.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
-  void _addItem(BuildContext context) {
-    Navigator.push(
-        context, MaterialPageRoute(builder: (context) => const NewItem()));
-  }
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  List<GroceryItem> _groceryItems = [];
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final itemsList = ref.watch(groceryProvider).toList();
+  void initState() {
+    super.initState();
+    _loadItems();
+  }
 
-    Widget fallbackScreen = Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Lottie.network("https://lottie.host/22bbebab-2491-45cd-868a-d7e0d66d61d5/6wfu7PNsK5.json"),
-          Text(
-            "Oops..",
-            style: Theme.of(context).textTheme.headlineLarge,
-          ),
-          Text(
-            "No Item Found",
-            style: Theme.of(context).textTheme.headlineLarge,
-          ),
-        ],
+  void _loadItems() async {
+    final url = Uri.https(
+        'shoppingapp-33221-default-rtdb.firebaseio.com', 'shopping-list.json');
+    final response = await http.get(url);
+    final Map<String, dynamic> listData = json.decode(response.body);
+    final List<GroceryItem> _loadedItems = [];
+    for (final item in listData.entries) {
+      final category = categories.entries
+          .firstWhere(
+              (catItem) => catItem.value.title == item.value['category'])
+          .value;
+      _loadedItems.add(
+        GroceryItem(
+          id: item.key,
+          name: item.value['name'],
+          quantity: item.value['quantity'],
+          category: category,
+        ),
+      );
+    }
+    setState(() {
+      _groceryItems = _loadedItems;
+    });
+  }
+
+  void _addItem() async {
+    await Navigator.of(context).push<GroceryItem>(
+      MaterialPageRoute(
+        builder: (ctx) => const NewItem(),
       ),
     );
 
-    Widget mainScreen = ListView.builder(
-        itemCount: itemsList.length,
-        itemBuilder: (context, item) {
-          // print(itemsList.elementAt(item));
-          return ListViewGroceryItem(itemsList.elementAt(item));
-        });
-    return Scaffold(
-        appBar: AppBar(
-          title: const Text(
-            "Your Groceries",
+    _loadItems();
+  }
+
+  void _removeItem(GroceryItem item) {
+    setState(() {
+      _groceryItems.remove(item);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget content = const Center(child: Text('No items added yet.'));
+
+    if (_groceryItems.isNotEmpty) {
+      content = ListView.builder(
+        itemCount: _groceryItems.length,
+        itemBuilder: (ctx, index) => Dismissible(
+          onDismissed: (direction) {
+            _removeItem(_groceryItems[index]);
+          },
+          key: ValueKey(_groceryItems[index].id),
+          child: ListTile(
+            title: Text(_groceryItems[index].name),
+            leading: Container(
+              width: 24,
+              height: 24,
+              color: _groceryItems[index].category.color,
+            ),
+            trailing: Text(
+              _groceryItems[index].quantity.toString(),
+            ),
           ),
-          actions: [
-            IconButton(
-                onPressed: () {
-                  _addItem(context);
-                },
-                icon: const Icon(Icons.add))
-          ],
         ),
-        body: (itemsList.isEmpty) ? fallbackScreen : mainScreen);
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Your Groceries'),
+        actions: [
+          IconButton(
+            onPressed: _addItem,
+            icon: const Icon(Icons.add),
+          ),
+        ],
+      ),
+      body: content,
+    );
   }
 }
